@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Gallery Save Version</title>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    background:#0f0f0f;
+    color:white;
+    font-family:Arial,sans-serif;
+    padding:20px;
+}
+
+.container{
+    max-width:1400px;
+    margin:auto;
+}
+
+h1{
+    margin-bottom:20px;
+}
+
+.controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:30px;
+}
+
+input,select,button{
+    padding:10px;
+    border:none;
+    border-radius:8px;
+}
+
+input{
+    background:#222;
+    color:white;
+    min-width:220px;
+}
+
+button{
+    background:#ff0000;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover{
+    opacity:0.8;
+}
+
+.video-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:20px;
+}
+
+.video-card{
+    background:#1a1a1a;
+    border-radius:12px;
+    overflow:hidden;
+    cursor:pointer;
+    transition:0.25s;
+}
+
+.video-card:hover{
+    transform:translateY(-5px);
+}
+
+.thumbnail-container{
+    position:relative;
+    aspect-ratio:16/9;
+    overflow:hidden;
+}
+
+.thumbnail{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+
+.thumbnail-placeholder{
+    width:100%;
+    height:100%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#333;
+    color:#888;
+}
+
+.play-overlay{
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,0.4);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    opacity:0;
+    transition:0.2s;
+}
+
+.video-card:hover .play-overlay{
+    opacity:1;
+}
+
+.play-icon{
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    background:red;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:28px;
+}
+
+.card-info{
+    padding:12px;
+}
+
+.video-title{
+    font-size:1rem;
+    margin-bottom:6px;
+}
+
+.channel-name{
+    color:#aaa;
+    font-size:0.85rem;
+}
+
+@media(max-width:900px){
+    .video-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+}
+
+@media(max-width:600px){
+    .video-grid{
+        grid-template-columns:1fr;
+    }
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <h1>🎬 YouTube Gallery</h1>
+
+    <div class="controls">
+
+        <select id="videoSelector">
+            <option value="0">カード1</option>
+            <option value="1">カード2</option>
+            <option value="2">カード3</option>
+            <option value="3">カード4</option>
+            <option value="4">カード5</option>
+            <option value="5">カード6</option>
+            <option value="6">カード7</option>
+            <option value="7">カード8</option>
+            <option value="8">カード9</option>
+        </select>
+
+        <input type="text" id="newUrlInput" placeholder="YouTube URL">
+
+        <input type="text" id="newTitleInput" placeholder="タイトル">
+
+        <input type="text" id="newChannelInput" placeholder="チャンネル名">
+
+        <button id="updateBtn">更新</button>
+
+        <button id="resetBtn">リセット</button>
+
+    </div>
+
+    <div class="video-grid" id="videoGrid"></div>
+
+</div>
+
+<script>
+
+// ========================================
+// 初期データ
+// ========================================
+
+const defaultData = [
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""},
+    {url:"", title:"", channel:""}
+];
+
+
+// ========================================
+// localStorageから読み込み
+// ========================================
+
+let videoData =
+    JSON.parse(localStorage.getItem("youtube_gallery_data"))
+    || defaultData;
+
+
+// ========================================
+// 保存
+// ========================================
+
+function saveData(){
+
+    localStorage.setItem(
+        "youtube_gallery_data",
+        JSON.stringify(videoData)
+    );
+
+}
+
+
+// ========================================
+// YouTube ID抽出
+// ========================================
+
+function extractVideoId(url){
+
+    if(!url) return null;
+
+    const patterns = [
+        /(?:youtube\.com\/watch\?v=)([\w-]{11})/,
+        /(?:youtu\.be\/)([\w-]{11})/,
+        /(?:youtube\.com\/embed\/)([\w-]{11})/,
+        /^([\w-]{11})$/
+    ];
+
+    for(let pattern of patterns){
+
+        const match = url.match(pattern);
+
+        if(match && match[1]){
+            return match[1];
+        }
+    }
+
+    return null;
+}
+
+
+// ========================================
+// サムネイルURL
+// ========================================
+
+function getThumbnailUrl(videoId){
+
+    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+}
+
+
+// ========================================
+// 描画
+// ========================================
+
+function renderGallery(){
+
+    const grid = document.getElementById('videoGrid');
+
+    grid.innerHTML = '';
+
+    videoData.forEach((video,index)=>{
+
+        const videoId = extractVideoId(video.url);
+
+        const card = document.createElement('div');
+
+        card.className = 'video-card';
+
+        let thumbnailHtml = '';
+
+        if(videoId){
+
+            thumbnailHtml = `
+                <img
+                    class="thumbnail"
+                    src="${getThumbnailUrl(videoId)}"
+                >
+            `;
+
+        }else{
+
+            thumbnailHtml = `
+                <div class="thumbnail-placeholder">
+                    YouTube URL未設定
+                </div>
+            `;
+        }
+
+        card.innerHTML = `
+
+            <div class="thumbnail-container">
+
+                ${thumbnailHtml}
+
+                <div class="play-overlay">
+                    <div class="play-icon">▶</div>
+                </div>
+
+            </div>
+
+            <div class="card-info">
+
+                <div class="video-title">
+                    ${video.title || 'タイトル未設定'}
+                </div>
+
+                <div class="channel-name">
+                    ${video.channel || 'チャンネル未設定'}
+                </div>
+
+            </div>
+        `;
+
+
+        // ========================================
+        // クリックで別タブ再生
+        // ========================================
+
+        card.addEventListener('click',()=>{
+
+            if(!videoId){
+
+                alert('有効なYouTube URLを設定してください');
+
+                return;
+            }
+
+            window.open(
+                `https://www.youtube.com/watch?v=${videoId}`,
+                '_blank'
+            );
+
+        });
+
+        grid.appendChild(card);
+
+    });
+
+}
+
+
+// ========================================
+// 更新
+// ========================================
+
+document.getElementById('updateBtn').addEventListener('click',()=>{
+
+    const idx = parseInt(
+        document.getElementById('videoSelector').value
+    );
+
+    const url =
+        document.getElementById('newUrlInput').value;
+
+    const title =
+        document.getElementById('newTitleInput').value;
+
+    const channel =
+        document.getElementById('newChannelInput').value;
+
+    if(url){
+        videoData[idx].url = url;
+    }
+
+    if(title){
+        videoData[idx].title = title;
+    }
+
+    if(channel){
+        videoData[idx].channel = channel;
+    }
+
+    // 保存
+    saveData();
+
+    // 再描画
+    renderGallery();
+
+    // 入力欄クリア
+    document.getElementById('newUrlInput').value='';
+    document.getElementById('newTitleInput').value='';
+    document.getElementById('newChannelInput').value='';
+
+});
+
+
+// ========================================
+// リセット
+// ========================================
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+
+    if(!confirm('全てリセットしますか？')){
+        return;
+    }
+
+    videoData = [...defaultData];
+
+    saveData();
+
+    renderGallery();
+
+});
+
+
+// ========================================
+// 初期描画
+// ========================================
+
+renderGallery();
+
+</script>
+
+</body>
+</html>
