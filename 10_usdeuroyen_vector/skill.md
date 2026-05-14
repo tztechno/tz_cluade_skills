@@ -1,4 +1,3 @@
-Excellent choice. Having this in English is standard for technical documentation and makes it a great addition to a GitHub repository or a portfolio. Here is the translated `skill.md`.
 
 ---
 
